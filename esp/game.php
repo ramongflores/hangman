@@ -546,6 +546,11 @@ window.joinRoom = async function() {
 // ══════════════════════════════
 //  MANEJADOR DE MENSAJES
 // ══════════════════════════════
+// Los nombres llegan del otro jugador: escapar antes de insertarlos como HTML
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function handleMsg(msg) {
   const { type, payload } = msg;
   switch(type) {
@@ -554,7 +559,7 @@ function handleMsg(msg) {
       G.players[1] = { name: payload.guestName, score:0, av: payload.guestAv };
       updateSlots();
       document.getElementById('wait-msg').innerHTML =
-        '✅ ¡' + payload.guestName + ' se unió! Iniciando<span class="dots"></span>';
+        '✅ ¡' + esc(payload.guestName) + ' se unió! Iniciando<span class="dots"></span>';
       setTimeout(() => {
         // Enviar estado al guest
         sendMsg({ type:'HELLO', payload:{
@@ -575,7 +580,7 @@ function handleMsg(msg) {
       G.guesser = 1 - G.setter;
       updateSlots();
       document.getElementById('wait-msg').innerHTML =
-        '✅ ¡Conectado con ' + payload.hostName + '! Iniciando<span class="dots"></span>';
+        '✅ ¡Conectado con ' + esc(payload.hostName) + '! Iniciando<span class="dots"></span>';
       break;
 
     case 'GO_SETUP':
@@ -641,7 +646,7 @@ function showWaitingForWord() {
   showScreen('waiting');
   const setterName = G.players[G.setter]?.name || 'Rival';
   document.getElementById('wait-msg').innerHTML =
-    '<span class="spin">⟳</span> ' + setterName + ' está eligiendo la palabra<span class="dots"></span>';
+    '<span class="spin">⟳</span> ' + esc(setterName) + ' está eligiendo la palabra<span class="dots"></span>';
 }
 
 window.submitWord = function() {
@@ -911,8 +916,8 @@ function showResult(res) {
   document.getElementById('res-word').textContent = G.word;
   document.getElementById('fin-row').innerHTML = G.players.map((p,i) =>
     `<div class="fcard ${i===winner?'win':''}">
-      <div class="fav">${p.av||'👤'}</div>
-      <div class="fn">${p.name||'J'+(i+1)}</div>
+      <div class="fav">${esc(p.av||'👤')}</div>
+      <div class="fn">${esc(p.name||'J'+(i+1))}</div>
       <div class="fps">${p.score||0}</div>
     </div>`
   ).join('<div class="fin-vs">VS</div>');

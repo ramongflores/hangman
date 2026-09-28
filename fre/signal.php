@@ -5,19 +5,15 @@
  */
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
 // ── Configuración ──
 define('ROOMS_DIR', __DIR__ . '/rooms/');
 define('MSG_LIMIT', 60);      // solo guardamos los últimos 60 mensajes por sala
 define('ROOM_TTL',  1800);    // limpiar sala tras 30 min de inactividad (no 1h)
 define('CLEAN_PROB', 5);      // limpiar salas viejas en 1 de cada 5 requests (aleatorio)
+define('MAX_BODY', 4096);     // tamaño máximo de un mensaje (bytes)
 
 if (!is_dir(ROOMS_DIR)) {
     mkdir(ROOMS_DIR, 0755, true);
@@ -26,7 +22,11 @@ if (!is_dir(ROOMS_DIR)) {
 // Limpiar salas viejas de forma aleatoria para no hacerlo en cada request
 if (rand(1, CLEAN_PROB) === 1) {
     foreach (glob(ROOMS_DIR . '*.json') as $f) {
-        if (time() - filemtime($f) > ROOM_TTL) @unlink($f);
+        if (time() - filemtime($f) > ROOM_TTL) { @unlink($f); @unlink($f . '.lock'); }
+    }
+    // Locks huérfanos (salas que nunca se escribieron o ya se borraron)
+    foreach (glob(ROOMS_DIR . '*.json.lock') as $f) {
+        if (!file_exists(substr($f, 0, -5)) && time() - filemtime($f) > ROOM_TTL) @unlink($f);
     }
 }
 
@@ -63,7 +63,11 @@ $file = roomFile($room);
 //  Tiempo de respuesta: < 5ms
 // ════════════════════════════════════════
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $raw  = file_get_contents('php://input');
+    $raw  = file_get_contents('php://input', false, null, 0, MAX_BODY + 1);
+    if (strlen($raw) > MAX_BODY) {
+        http_response_code(413);
+        echo json_encode(['error' => 'too large']); exit;
+    }
     $body = $raw ? json_decode($raw, true) : null;
     if (!$body || !isset($body['msg'])) {
         echo json_encode(['error' => 'bad body']); exit;
